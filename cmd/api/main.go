@@ -1,18 +1,31 @@
 package main
 
 import (
-	"encoding/json"
+	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
-	"regexp"
 
-	"golang.org/x/crypto/bcrypt"
+	_ "modernc.org/sqlite"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func main() {
+	db, err := sql.Open("sqlite", "./database.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := applyMigrations(db); err != nil {
+		log.Fatal("Error applying migrations:", err)
+	}
 	router := http.NewServeMux()
 
-	router.HandleFunc("/POST /signup", Signup)
+	router.HandleFunc("GET /hello", Hello)
 
 	server := http.Server{
 		Addr:    ":3000",
@@ -23,64 +36,28 @@ func main() {
 	server.ListenAndServe()
 }
 
-func Signup(w http.ResponseWriter, r *http.Request) {
-	var signUpData SignUp
-
-	err := json.NewDecoder(r.Body).Decode(&signUpData)
-	if err != nil {
-		http.Error(w, "Error to decode JSON", http.StatusBadRequest)
-		return
-	}
-
-	isValid := isValidEmail(signUpData.Email)
-	if isValid != true {
-		http.Error(w, "Invalid email", http.StatusBadRequest)
-	}
-
-	if signUpData.Password != signUpData.PasswordConfirmation {
-		http.Error(w, "Password and password confirmation doesnt match", http.StatusBadRequest)
-	}
-
-	hashedPassword, err := HashedPassword(signUpData.Password)
-	if err != nil {
-		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
-	}
-
-	result, err := SignUpService.create(signUpData.Email, hashedPassword)
-	if err != nil {
-		http.Error(w, "Failed to sign up user", http.StatusInternalServerError)
-	}
-
+func Hello(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"uuid": result.uuid, "email": result.email})
-
 }
 
-func HashedPassword(password string) (string, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+func applyMigrations(db *sql.DB) error {
+	driver, err := sqlite3.WithInstance(db, &sqlite3.Config{})
 	if err != nil {
-		return "", err
+		return err
 	}
-	return string(hashedPassword), nil
-}
 
-func CheckPasswordHash(passsword, hashedPassword string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(passsword))
-	return err == nil
-}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../../migrations",
+		"sqlite", driver)
 
-func isValidEmail(email string) bool {
-	emailRegex := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
-	return regexp.MustCompile(emailRegex).MatchString(email)
-}
+	if err != nil {
+		return err
+	}
 
-type User struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
+	}
 
-type SignUp struct {
-	Email                string `json:"email"`
-	Password             string `json:"password"`
-	PasswordConfirmation string `json:"passwordConfirmation"`
+	fmt.Println("Migrations applied successfully!")
+	return nil
 }
