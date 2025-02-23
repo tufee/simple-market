@@ -38,6 +38,22 @@ func (r *userRepositorySQLite) FindByID(id int) (*domain.User, error) {
 	return user, nil
 }
 
+func (r *userRepositorySQLite) FindByEmail(email string) (*domain.User, error) {
+	query := `SELECT id, email from users WHERE email = ?`
+	row := r.db.QueryRow(query, email)
+
+	user := &domain.User{}
+	err := row.Scan(&user.ID, &user.Email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
 func (r *userRepositorySQLite) Update(user *domain.User) error {
 	query := `UPDATE users SET email = ? WHERE id = ?`
 	result, err := r.db.Exec(query, user.Email, user.ID)
