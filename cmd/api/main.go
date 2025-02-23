@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,7 +11,7 @@ import (
 )
 
 func main() {
-	db, err := sql.Open("sqlite", "./database.db")
+	db, err := utils.GetConnection("../../database.db")
 	if err != nil {
 		log.Fatal(err)
 	}
