@@ -17,8 +17,8 @@ func NewUserRepositorySQLite(db *sql.DB) UserRepository {
 }
 
 func (r *userRepositorySQLite) Create(user *domain.User) error {
-	query := `INSERT INTO users (id, email, password) VALUES (?, ?, ?)`
-	_, err := r.db.Exec(query, user.ID, user.Email, user.Password)
+	query := `INSERT INTO users (email, password) VALUES (?, ?)`
+	_, err := r.db.Exec(query, user.Email, user.Password)
 	return err
 }
 
